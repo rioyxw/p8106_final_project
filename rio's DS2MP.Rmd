@@ -1,0 +1,439 @@
+---
+title: "Midterm Report"
+author: "Rio Yan"
+date: '`r format(Sys.time(), "%Y-%m-%d")`'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(caret)
+
+knitr::opts_chunk$set(
+  fig.width = 9,
+  fig.asp = .6,
+  out.width = "90%"
+)
+
+theme_set(theme_minimal() + theme(legend.position = "bottom"))
+
+options(
+  ggplot2.continuous.colour = "viridis",
+  ggplot2.continuous.fill = "viridis"
+)
+
+scale_colour_discrete = scale_color_viridis_d
+scale_fill_discrete = scale_fill_viridis_d
+```
+
+
+load data
+```{r, message=FALSE, warning=FALSE}
+mat_df = 
+  read.table("student-mat.csv",sep = ";",header = TRUE) %>% 
+  janitor::clean_names() %>% 
+  mutate(
+    school = as.factor(school),
+    sex = as.factor(sex),
+    address = as.factor(address),
+    famsize = as.factor(famsize),
+    pstatus = as.factor(pstatus),
+    mjob = as.factor(mjob),
+    fjob = as.factor(fjob),
+    reason = as.factor(reason),
+    guardian = as.factor(guardian),
+    schoolsup = as.factor(schoolsup),
+    famsup = as.factor(famsup),
+    paid = as.factor(paid),
+    activities = as.factor(activities),
+    nursery = as.factor(nursery),
+    higher = as.factor(higher),
+    internet = as.factor(internet),
+    romantic = as.factor(romantic)
+  )
+
+# combine g1, g2, g3
+mat_df = 
+  mat_df %>% 
+  mutate(
+    grade = (g1 + g2 + g3) / 3
+  ) %>% 
+  dplyr::select(-g1, -g2, -g3)
+
+skimr::skim(mat_df)
+
+```
+
+
+## exploritory analysis
+
+summary table for categorical
+```{r, message=FALSE, warning=FALSE}
+library(gtsummary)
+
+mat_categorical =
+  mat_df %>% 
+  dplyr::select(-age, -medu, -fedu, -traveltime, -studytime, -failures, -famrel, -freetime, -goout, -dalc,-walc,-health,-absences, -grade)
+
+mat_categorical %>% 
+  tbl_summary()
+```
+
+continuous variable plot
+
+```{r, message=FALSE, warning=FALSE}
+# df of predictors 
+x_corr = mat_df %>% 
+  dplyr::select(-grade)
+
+x_corr = mat_df %>% 
+  dplyr::select(-school, -sex, -address,-famsize, -pstatus, -mjob, -fjob, -reason, -guardian, -schoolsup, -famsup , -paid, -activities, -nursery, -higher, -internet, -romantic, -grade)
+
+# vector of response
+y_corr = mat_df$grade
+
+theme1 <- trellis.par.get()
+theme1$plot.symbol$col <- rgb(.2, .4, .2, .5)
+theme1$plot.symbol$pch <- 16
+theme1$plot.line$col <- rgb(.8, .1, .1, 1)
+theme1$plot.line$lwd <- 2
+theme1$strip.background$col <- rgb(.0, .2, .6, .2)
+trellis.par.set(theme1)
+featurePlot(x_corr, y_corr, plot = "scatter", labels = c("","Y"),
+            type = c("p"), layout = c(6, 3))
+```
+
+
+Correlation plot
+
+```{r, message=FALSE, warning=FALSE}
+library(ggcorrplot)
+
+corr_df = 
+  mat_df %>% 
+  select(age, medu, fedu, traveltime, studytime, failures, famrel, freetime, goout, dalc, walc, health, absences, grade) 
+
+# correlation plot with only continous var
+model.matrix(~0+., data = corr_df) %>% 
+  cor(use = "pairwise.complete.obs") %>% 
+   ggcorrplot(show.diag = F, type="lower", 
+             lab=TRUE, lab_size=2, 
+             title = "Correlation of parameters of interest")
+
+# correlation plot with all variables
+model.matrix(~0+., data = mat_df) %>% 
+  cor(use = "pairwise.complete.obs") %>% 
+   ggcorrplot(show.diag = F, type="lower", 
+             lab=TRUE, lab_size=2, 
+             title = "Correlation of parameters of interest")
+
+```
+
+## Models
+
+create training data set
+```{r, message=FALSE, warning=FALSE}
+## try and see if compressing the reason variable will contribute to better fitting model
+#mat_df = 
+#mat_df %>% 
+#  mutate(
+#    reason = plyr::revalue(reason, c("course" = "school")),
+#    reason = plyr::revalue(reason, c("reputation" = "school")),
+#    reason = plyr::revalue(reason, c("home" = "other")),
+#    mjob =  plyr::revalue(mjob, c("teacher" = "working")),
+#    mjob =  plyr::revalue(mjob, c("health" = "working")),
+#    mjob =  plyr::revalue(mjob, c("services" = "working")),
+#    fjob =  plyr::revalue(fjob, c("teacher" = "working")),
+#    fjob =  plyr::revalue(fjob, c("health" = "working")),
+#    fjob =  plyr::revalue(fjob, c("services" = "working")))
+
+mat = model.matrix(grade ~ ., mat_df)[, -1]
+
+set.seed(10)
+trainRows = createDataPartition(y = mat_df$grade, p = 0.8, list = FALSE)
+
+# matrix of predictors
+x = mat[trainRows,]
+# vector of response
+y = mat_df$grade[trainRows]
+
+# test data
+x_test = mat[-trainRows,]
+
+y_test = mat_df$grade[-trainRows]
+
+
+#view(mat_test)
+```
+
+ 
+linear model
+
+```{r, message=FALSE, warning=FALSE}
+# control method
+ctrl1 = trainControl(method = "cv", number = 10)
+
+## fit linear model on training data
+set.seed(10)
+linear.fit = train(x, y,
+                   method = "lm",
+                   trControl = ctrl1)
+
+summary(linear.fit)
+```
+
+
+ridge regression model
+```{r, message=FALSE, warning=FALSE}
+set.seed(10)
+ridge.fit = train(x, y,
+                  method = "glmnet",
+                  tuneGrid = expand.grid(alpha = 0,
+                                         lambda = exp(seq(2, -2, length = 100))),
+                  trControl = ctrl1
+                  )
+
+# find the lowest point by ploting different tunning grid look at the cv plot
+plot(ridge.fit, xTrans = log)
+
+ridge.fit$bestTune
+
+# coefficients in the final model
+coef(ridge.fit$finalModel, s = ridge.fit$bestTune$lambda)
+```
+
+
+lasso model
+
+```{r, message=FALSE, warning=FALSE}
+set.seed(10)
+lasso.fit = train(x, y,
+                  method = "glmnet",
+                  tuneGrid = expand.grid(alpha = 1,
+                                         lambda = exp(seq(0, -5, length = 100))),
+                  trControl = ctrl1)
+
+plot(lasso.fit, xTrans = log)
+
+lasso.fit$bestTune
+
+coef(lasso.fit$finalModel, lasso.fit$bestTune$lambda)
+
+```
+
+elastic net
+```{r, message=FALSE, warning=FALSE}
+set.seed(10)
+enet.fit = train(x, y,
+                  method = "glmnet",
+                  tuneGrid = expand.grid(alpha = seq(0, 1, length = 11),
+                                         lambda = exp(seq(1, -5, length = 50))),
+                  trControl = ctrl1)
+
+enet.fit$bestTune
+
+plot(enet.fit)
+coef(enet.fit$finalModel, enet.fit$bestTune$lambda)
+```
+
+PCR
+```{r, message=FALSE, warning=FALSE}
+set.seed(10)
+pcr.fit = train(x, y,
+                method = "pcr",
+                #tuneGrid = data.frame(ncomp = 1:228),
+                tuneGrid = expand.grid(ncomp = seq(1, ncol(x_test))),
+                trControl = ctrl1,
+                preProcess = c("center", "scale")) 
+
+
+pcr.fit$bestTune
+
+summary(pcr.fit)
+
+ggplot(pcr.fit, highlight = TRUE) + theme_bw()
+
+```
+
+PLS
+
+```{r, message=FALSE, warning=FALSE}
+set.seed(10)
+pls.fit = train(x, y,
+                method = "pls",
+                #tuneGrid = data.frame(ncomp = 1:228),
+                tuneGrid = expand.grid(ncomp = seq(1, ncol(x_test))),
+                trControl = ctrl1,
+                preProcess = c("center", "scale")) 
+
+pls.fit$bestTune
+
+ggplot(pls.fit, highlight = TRUE) + theme_bw()
+```
+
+
+
+### non-linear
+
+GAM
+```{r, message=FALSE, warning=FALSE}
+set.seed(10)
+gam.fit = train(x, y,
+                  method = "gam",
+                  tuneGrid = data.frame(method = "GCV.Cp", select = c(TRUE, FALSE)),
+                  trControl = ctrl1)
+
+gam.fit$bestTune
+
+gam.fit$finalModel
+
+plot(gam.fit$finalModel)
+```
+
+
+MARS
+```{r, message=FALSE, warning=FALSE}
+# identify the grid to minimize prediction error
+mars_grid = expand.grid(degree = 1:3,
+                        nprune = 8:20)
+
+set.seed(10)
+mars.fit = train(x, y,
+                 method = "earth",
+                 tuneGrid = mars_grid,
+                 trControl = ctrl1)
+
+ggplot(mars.fit)
+
+#nprune 14, degree 1
+mars.fit$bestTune
+
+# final model： not all predictors are included in the model
+coef(mars.fit$finalModel)
+summary(mars.fit)
+```
+
+
+
+compare
+```{r, message=FALSE, warning=FALSE}
+set.seed(10)
+resamp <- resamples(list(lasso = lasso.fit,
+                        ridge = ridge.fit,
+                        linear = linear.fit,
+                        enet = enet.fit,
+                        pcr = pcr.fit,
+                        pls = pls.fit,
+                        gam = gam.fit,
+                        mars = mars.fit
+))
+
+summary(resamp)
+
+bwplot(resamp, metric = "RMSE")
+```
+
+
+Prediction
+```{r, message=FALSE, warning=FALSE}
+lasso.pred = predict(lasso.fit, newdata = x_test)
+# test error
+mean((lasso.pred - y_test)^2)
+
+
+ridge.pred = predict(ridge.fit, newdata = x_test)
+# test error
+mean((ridge.pred - y_test)^2)
+
+
+linear.pred = predict(linear.fit, newdata = x_test)
+# test error
+mean((linear.pred - y_test)^2)
+
+
+enet.pred = predict(enet.fit, newdata = x_test)
+# test error
+mean((enet.pred - y_test)^2)
+
+
+pcr.pred = predict(pcr.fit, newdata = x_test)
+# test error
+mean((pcr.pred - y_test)^2)
+
+
+pls.pred = predict(pls.fit, newdata = x_test)
+# test error
+mean((pls.pred - y_test)^2)
+
+gam.pred = predict(gam.fit, newdata = x_test)
+# test error
+mean((gam.pred - y_test)^2)
+
+
+mars.pred = predict(mars.fit, newdata = x_test)
+# test error
+mean((mars.pred - y_test)^2)
+```
+
+
+```{r, message=FALSE, warning=FALSE}
+lasso_error = 
+  mean((lasso.pred - y_test)^2)%>% 
+  matrix(ncol = 1) 
+
+ridge_error = 
+  mean((ridge.pred - y_test)^2)%>% 
+  matrix(ncol = 1) 
+
+linear_error = 
+  mean((linear.pred - y_test)^2)%>% 
+  matrix(ncol = 1) 
+
+enet_error = 
+  mean((enet.pred - y_test)^2)%>% 
+  matrix(ncol = 1) 
+
+pcr_error = 
+  mean((pcr.pred - y_test)^2)%>% 
+  matrix(ncol = 1) 
+
+pls_error = 
+  mean((pls.pred - y_test)^2)%>% 
+  matrix(ncol = 1) 
+
+gam_error = 
+  mean((gam.pred - y_test)^2)%>% 
+  matrix(ncol = 1) 
+
+mars_error = 
+  mean((mars.pred - y_test)^2)%>% 
+  matrix(ncol = 1) 
+
+
+
+combine_error = 
+  rbind(lasso_error,ridge_error, linear_error, enet_error, pcr_error,pls_error,gam_error,mars_error) 
+colnames(combine_error) = c("test error")
+rownames(combine_error) <- c("lasso","ridge", "linear", "enet", "pcr", "pls", "gam", "mars")
+combine_error
+
+```
+
+Conclusion
+```{r, warning=FALSE}
+library(pls)
+set.seed(10)
+pcr.mod = pcr(grade ~ .,
+              data = mat_df[trainRows,],
+              scale = TRUE,
+              validation = "CV",
+              jackknife = TRUE)
+# 28 component
+summary(pcr.mod)
+
+validationplot(pcr.mod, valtype = "MSEP", legendpos = "topright")
+
+# to get coefficient
+jack.test(pcr.mod, n = 28)
+```
+

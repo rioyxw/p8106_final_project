@@ -1,0 +1,251 @@
+---
+title: "Midterm Project Report"
+author: "Elaine Xu"
+date: "3/20/2021"
+output:
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(kableExtra)
+library(caret)
+library(reshape2)
+library(glmnet)
+library(lme4)
+library(pls)
+library(splines)
+library(mgcv)
+library(FNN) # knn.reg()
+library(doBy)
+library(earth)
+library(pdp)
+library(ggplot2)
+library(readr)
+library(corrplot)
+
+student = read.table("./student-mat.csv", header = TRUE, sep = ";") %>%
+  janitor::clean_names() %>%
+  mutate(grade = round((g1+g2+g3)/3,2)) %>%
+  select(-g1,-g2,-g3) %>%
+  mutate(school = as.factor(school),
+         sex = as.factor(sex),
+         address = as.factor(address),
+         famsize = as.factor(famsize),
+         pstatus = as.factor(pstatus),
+         mjob = as.factor(mjob),
+         fjob = as.factor(fjob),
+         reason = as.factor(reason),
+         guardian = as.factor(guardian),
+         schoolsup = as.factor(schoolsup),
+         famsup = as.factor(famsup),
+         paid = as.factor(paid),
+         activities = as.factor(activities),
+         nursery = as.factor(nursery),
+         higher = as.factor(higher),
+         internet = as.factor(internet),
+         romantic = as.factor(romantic))
+
+student_num <- student %>%
+  select(-c(1:2, 4:6,9:12,16:23))
+
+student_cate <- student %>%
+  select(c(1:2, 4:6,9:12,16:23))
+
+aag <- student %>% select(c(age, absences,grade))
+
+aag_x <- student_num[,-14]
+aag_y <- student_num[,14]
+
+student_cate_bin <- student_cate %>% select(c(10:17))
+student_cate_level <- student_cate %>% select(c(1:9))
+
+x_1 <- model.matrix(grade~., student)[,-31]
+y <- student[,31]
+
+# split to train data and test data
+indexTrain <- createDataPartition(y, p = 0.8, list = FALSE)
+trainData <- student[indexTrain, ]
+testData <- student[-indexTrain, ]
+
+x_t <- model.matrix(grade~.,testData)[,-31]
+y_t <- testData[,31] 
+```
+### Introducation
+
+Education is an essential factor for long-term success in the future. Of all the core classes, mathematics, as a scientific language, is a very powerful tool. Core classes of Mathematics provide fundamental knowledge for many subjects, which is one of the reasons that is so important to study it.
+
+In this project, we are looking at the data of student achievement in secondary education of two Portuguese schools. The goal for this project is to identify the key variables that affect educational success or failure in mathematics through students' studying progress. The data includes student grades, demographic, social and school related features, and it was collected by using school reports and questionnaires. The target variable G3 (final year grade) has a strong correlation with G2 and G1 (1st and 2nd-period grades). Hence, we took the average value of these three grades as our final outcome, which will make the prediction more useful.
+
+The data set we were using is already been cleaned with no missing value. In the original data set, there were 33 variables. After we took the average of the three grades variables and named the new column "grade", there are only 31 variables remained in our data: sex, age, school, address, parent's cohabitation status, mother and father's education and jobs, student's guardian, family size and quality of family relationships, reason to choose this school, weekly study time, number of past class failures and the other fifteen predictors.
+
+There are mainly three types of data: binary classification data such like sex (male/female), address (urban/rural); nominal data such like mother's job or mother's education; numeric data with levels and without levels, such like current health status (numeric: from 1 - very bad to 5 - very good) and age (from 15 to 22). Since most of the data are categorical data, we factorized the binary and nominal data, and we leave all the numeric data as continuous variables.
+
+### Exploratory analysis
+
+We first want to take a look at the thirteen numeric predictors. From the exploratory plot we can see that _absences_ is the only real continuous variable. The distribution is showing that most of the students are having absences less than 30 times, only a few students exceed 40 times. While looking at the other predictors, except for variables like age and father's education, the data distribution in every other predictors are relatively centralized and even. For the categorical data, we split them into two categories: nominal data and binary data. From the nominal, and then create a summary table to look at the distribution.
+
+```{r, echo=FALSE}
+theme1 <- trellis.par.get()
+theme1$plot.symbol$col <- rgb(.2, .4, .2, .5)
+theme1$plot.symbol$pch <- 16
+theme1$plot.line$col <- rgb(.8, .1, .1, 1)
+theme1$plot.line$lwd <- 2
+theme1$strip.background$col <- rgb(.0, .2, .6, .2)
+trellis.par.set(theme1)
+featurePlot(aag_x, aag_y, plot = "scatter", labels = c("Preditor","Response"),
+type = c("p"), layout = c(5,3))
+```
+```{r, echo=FALSE}
+summary(student_cate_level) %>% kbl(caption = "Categorical data summary: character variables") %>%
+  kable_classic(full_width = F, html_font = "Cambria")
+
+summary(student_cate_bin) %>% kbl(caption = "Categorical data summary: binary classification (yes/no)") %>%
+  kable_classic(full_width = F, html_font = "Cambria")
+```
+
+We then created a Pearson correlation matrix to see the correlation between outcome and predictors. From the plot below, we can see that grade has a relatively strong negative correlation with failures. It shows that students will less likely to have a good grade if they fail more classes. Negative correlation with _grade_ also showing with age, travel time, time of going out with friends. While looking at the positive correlation, it appears that the higher the mother's and father' educational level, the better the children's grades will be. In the same way, the length of study also affects the performance of these students.
+
+```{r exploratory, echo=FALSE}
+corr_student <- melt(round(cor(student_num),2))
+
+ggplot(corr_student, aes(Var2, Var1, fill = value))+
+ geom_tile(color = "white")+
+ scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+   midpoint = 0, limit = c(-1,1), space = "Lab", 
+    name="Pearson\nCorrelation") +
+  theme_minimal()+ # minimal theme
+ theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+    size = 12, hjust = 1))+
+ coord_fixed() + 
+geom_text(aes(Var2, Var1, label = value), color = "black", size = 2) +
+theme(
+  axis.title.x = element_blank(),
+  axis.title.y = element_blank(),
+  panel.grid.major = element_blank(),
+  panel.border = element_blank(),
+  panel.background = element_blank(),
+  axis.ticks = element_blank(),
+  legend.justification = c(1, 0),
+  legend.position = c(0.6, 1),
+  legend.direction = "horizontal")+
+  guides(fill = guide_colorbar(barwidth = 7, barheight = 1,
+                title.position = "top", title.hjust = 0.5))
+```
+
+### Models
+
+We generated five models to find the best fit one. These include three linear models: Simple linear regression model, Ridge linear regression model and Lasso linear regression model, and two non-linear models which are K-Nearest Neighors model and Generalized Additive model.
+
+__Linear models__
+
+From the summary of the simple linear model, we can see there are only six predictors are significant. The most significant predictor is _number of past class failures_, the second significant predictor is _extra educational school support_. Hence, we generated a new linear model with these six significant predictors. By comparing the original linear model with the new linear model, we find out that the new model has less RMSE value and a larger R-squared value. This means that when only comparing the linear model, the new model with six predictors fit better with the data.
+
+From the Ridge linear regression model, we find that there is a tuning parameter that helps shrink the coefficients. The tuning parameter is chosen by cross validation. In this model, the best tune is when $\lambda$ = 2.13. By comparing the summary value with linear models, the mean RMSE of ridge model is 0.03 less than the new linear model, and the mean R_squared value is 0.02 larger. This interprets that Ridge is fitting the data better than linear models.
+
+When looking at the last linear model we choose, Lasso model only keeps fourteen predictors in the final model. These fourteen variables include the ones that are significant in the linear model. Lasso model is showing the best tune at $\lambda$ = 0.135. Comparing Lasso with the previous two models, Lasso has a larger RMSE and a smaller R-squared value than Ridge model. We can conclude that Lasso model is better than Linear model, but Ridge model is still the best fit model in all these three linear models.
+
+__Non-linear models__
+
+The MARS model has two tuning parameters. After performing a grid search, we can see that when degree of interactions equals to one and number of retained term is between ten to fifteen it has the optimal value. For both MARS model and KNN model, their mean RMSE value are both larger and mean R-squared value are smaller when comparing them with Ridge model.  
+
+```{r, include=FALSE}
+kGrid <- expand.grid(k = seq(from = 1, to = 40, by = 1))
+set.seed(1)
+
+# KNN
+knn <- train(grade ~ ., 
+                 data = trainData,
+                 method = "knn",
+                 trControl = trainControl(method = "cv", number = 10),
+                 tuneGrid = kGrid)
+
+
+# LM
+lm = train(grade ~ ., data = trainData, method = "lm", trControl = trainControl(method = "cv", number = 10))
+summary(lm) # absences is not significant
+
+new_lm = train(grade ~sex+studytime+failures+schoolsup+famsup+goout,data = trainData, method = "lm", trControl = trainControl(method = "cv", number = 10))
+
+
+# Ridge
+ridge = train(grade ~ ., data = trainData, method = "glmnet",
+    tuneGrid = expand.grid(alpha = 0,
+                           lambda = exp(seq(10,-5, length = 100))),
+    trControl = trainControl(method = "cv", number = 10)
+  )
+summary(ridge)
+ridge$bestTune
+
+# Mars
+mars_grid <- expand.grid(degree = 1:3, nprune = 2:20)
+mars <- train(trainData[,-31], trainData[,31],
+                  method = "earth",
+                  tuneGrid = mars_grid,
+                  trControl = trainControl(method = "cv", number = 10))
+
+# Lasso
+lasso =train(grade ~ ., data = trainData, method = "glmnet",
+    tuneGrid = expand.grid(alpha = 1,
+                           lambda = exp(seq(1,-8, length = 100))),
+    trControl = trainControl(method = "cv", number = 10)
+  )
+lasso$bestTune
+coef(lasso$finalModel, lasso$bestTune$lambda)
+
+# Compare model
+
+resamp <- resamples(list(lm=lm,
+                         ridge=ridge,
+                         lasso=lasso,
+                         knn = knn,
+                         mars = mars))
+summary(resamp)
+
+```
+
+```{r Mars, echo=FALSE, message=FALSE}
+set.seed(1)
+
+mars.fit <- train(trainData[,-31], trainData[,31],
+                  method = "earth",
+                  tuneGrid = mars_grid,
+                  trControl = trainControl(method = "cv", number = 10))
+
+ggplot(mars.fit)
+```
+
+__Model Comparison__
+
+After comparing all these five models and looking at the summary, Ridge model has the smallest RMSE value and the largest R-squared value, which indicates it is the best model fit with the data among these five models. When evaluating the model on the test data, we found out that Lasso model has the smallest RMSE. This indicates that Lasso model has the best predictive ability among these five models. There are other models, such like principal components regression that wasn't use in this study. When including more models, Ridge regression model may not be the best fit model.
+```{r, echo=FALSE}
+pred.knn <- predict(knn, newdata = testData)
+pred.lm <- predict(lm, newdata = testData)
+pred.lasso <- predict(lasso, newdata = testData)
+pred.ridge <- predict(ridge, newdata = testData)
+pred.mars <- predict(mars, newdata = testData)
+
+data.frame(
+  KNN = RMSE(pred.knn, testData[,31]),
+  LM = RMSE(pred.lm, testData[,31]),
+  MARS = RMSE(pred.mars, testData[,31]),
+  Ridge = RMSE(pred.ridge, testData[,31]),
+  Lasso = RMSE(pred.lasso, testData[,31])
+)%>%
+  kbl(caption = "Evaluating the model on the test data: RMSE") %>%
+  kable_classic(full_width = F, html_font = "Cambria")
+```
+
+
+### Conclusion
+
+After generating the models, we can see that Ridge regression model fits the train data better. The most important predictors is the _number of past class failures_. When just looking at the correlation matrix, we were expecting to see _absences_ as one of the most important predictors as well. However, in some of the models _absences_ was not even included.
+
+
+```{r, echo=FALSE}
+bwplot(resamp, metric = "RMSE")
+```
+$$\\[0.5in]$$
+__Reference:__
+P. Cortez and A. Silva. _Using Data Mining to Predict Secondary School Student Performance. In A. Brito and J. Teixeira Eds., Proceedings of 5th FUture BUsiness TEChnology Conference (FUBUTEC 2008) pp. 5-12, Porto, Portugal, April, 2008, EUROSIS, ISBN 978-9077381-39-7._

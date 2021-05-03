@@ -8,6 +8,13 @@ output: html_document
 ```{r setup, include=FALSE}
 library(tidyverse)
 library(caret)
+library(rpart)
+library(rpart.plot)
+library(party)
+library(partykit)
+library(randomForest)
+library(ranger)
+library(gbm)
 
 knitr::opts_chunk$set(
   fig.width = 9,
@@ -26,8 +33,8 @@ scale_colour_discrete = scale_color_viridis_d
 scale_fill_discrete = scale_fill_viridis_d
 ```
 
+## load data
 
-load data
 ```{r, message=FALSE, warning=FALSE}
 
 student = read.table("./student-mat.csv", header = TRUE, sep = ";") %>%
@@ -58,4 +65,144 @@ student$letter_grade[student$grade <14 & student$grade>=12] <- "C"
 student$letter_grade[student$grade <12 & student$grade>=10] <- "D"
 student$letter_grade[student$grade <10 & student$grade>=0] <- "F"
 
+student_letter_grade <- student %>% select(-grade)
+student_grade <- student %>% select(-letter_grade)
 ```
+
+```{r, include = FALSE}
+# Set up train/test data for letter grade dataset
+
+set.seed(1)
+
+trainRows1 = createDataPartition(student_letter_grade$letter_grade, p = 0.8, list = FALSE)
+student_no_grade = model.matrix(letter_grade ~ ., student_letter_grade)[, -31]
+x = student_no_grade[trainRows, ]
+y = student_letter_grade$letter_grade[trainRows]
+x_test = student_no_grade[-trainRows, ]
+y_test = student_letter_grade$letter_grade[-trainRows]
+
+ctrl1 = trainControl(method = "repeatedcv", number = 10, repeats = 5)
+```
+
+```{r, include = FALSE}
+# Set up train/test data for numeric grade
+
+set.seed(1)
+
+trainRows2 = createDataPartition(student_grade$grade, p = 0.8, list = FALSE)
+student_no_grade_num = model.matrix(grade ~ ., student_grade)[, -1]
+x = student_no_grade_num[trainRows, ]
+y = student_grade$grade[trainRows]
+x_test = student_no_grade_num[-trainRows, ]
+y_test = student_grade$grade[-trainRows]
+
+ctrl1 = trainControl(method = "repeatedcv", number = 10, repeats = 5)  
+```
+
+## Models
+
+```{r}
+# regression tree for numeric grade
+set.seed(1)
+tree1 <- rpart(formula = grade ~ . ,
+               data = student_grade,
+               subset = trainRows2,
+               control = rpart.control(cp = 0))
+cpTable <- printcp(tree1)
+
+plotcp(tree1)
+plot(as.party(tree1))
+rpart.plot(tree1)
+
+# regression tree for letter grade
+set.seed(1)
+tree1 <- rpart(formula = letter_grade ~ . ,
+               data = student_letter_grade,
+               subset = trainRows1,
+               control = rpart.control(cp = 0))
+cpTable <- printcp(tree1)
+
+plotcp(tree1)
+plot(as.party(tree1))
+rpart.plot(tree1)
+```
+
+```{r}
+#Perform bagging and report the variable importance
+set.seed(1)
+bagging <- randomForest(grade ~ . , 
+                        student_grade,
+                        subset = trainRows2,
+                        mtry = 30)
+
+
+bagging.grid <- expand.grid(mtry = 30,
+                       splitrule = "variance",
+                       min.node.size = 1:8)
+set.seed(1)
+bagging.fit <- train(grade ~ . , 
+                student_grade[trainRows2,], 
+                method = "ranger",
+                tuneGrid = bagging.grid,
+                trControl = ctrl1)
+
+bagging.final.imp <- ranger(grade ~ . , 
+                        student_grade[trainRows2,],
+                        mtry = 8, 
+                        splitrule = "variance",
+                        min.node.size = bagging.fit$bestTune[[3]],
+                        importance = "impurity",
+                        scale.permutation.importance = TRUE) 
+
+barplot(sort(ranger::importance(bagging.final.imp), decreasing = FALSE), 
+        las = 2, horiz = TRUE, cex.names = 0.7,
+        col = colorRampPalette(colors = c("cyan","blue"))(30))
+
+```
+
+```{r}
+# Perform random forest and report the variable importance
+set.seed(1)
+
+rf.grid <- expand.grid(mtry = 1:30,
+                       splitrule = "variance",
+                       min.node.size = 1:30)
+
+rf.fit <- train(grade ~ . , 
+                student_grade[trainRows2,], 
+                method = "ranger",
+                tuneGrid = rf.grid,
+                trControl = ctrl1)
+
+rf.final.imp <- ranger(grade ~ . , 
+                        student_grade[trainRows2,],
+                        mtry = rf.fit$bestTune[[1]], 
+                        splitrule = "variance",
+                        min.node.size = rf.fit$bestTune[[3]],
+                        importance = "impurity",
+                        scale.permutation.importance = TRUE) 
+
+barplot(sort(ranger::importance(rf.final.imp), decreasing = FALSE), 
+        las = 2, horiz = TRUE, cex.names = 0.7,
+        col = colorRampPalette(colors = c("cyan","blue"))(30))
+```
+
+```{r}
+# Perform boosting and report the variable importance
+set.seed(1)
+gbm.grid = expand.grid(n.trees = c(1000, 2000, 3000),
+                       interaction.depth = 1:4,
+                       shrinkage = c(0.01, 0.03, 0.05),
+                       n.minobsinnode = c(1, 10))
+
+gbm.fit = train(grade ~ . , 
+                student_grade[trainRows2,],
+                method = "gbm",
+                tuneGrid = gbm.grid,
+                trControl = ctrl1,
+                verbose = FALSE)
+ggplot(gbm.fit, highlight = TRUE)
+
+summary(gbm.fit$finalModel, las = 2, cBars = 30, cex.names = 0.6)
+```
+

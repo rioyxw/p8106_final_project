@@ -1,0 +1,61 @@
+---
+title: "models"
+author: "Elaine Xu"
+date: "5/2/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(caret)
+
+knitr::opts_chunk$set(
+  fig.width = 9,
+  fig.asp = .6,
+  out.width = "90%"
+)
+
+theme_set(theme_minimal() + theme(legend.position = "bottom"))
+
+options(
+  ggplot2.continuous.colour = "viridis",
+  ggplot2.continuous.fill = "viridis"
+)
+
+scale_colour_discrete = scale_color_viridis_d
+scale_fill_discrete = scale_fill_viridis_d
+```
+
+
+load data
+```{r, message=FALSE, warning=FALSE}
+
+student = read.table("./student-mat.csv", header = TRUE, sep = ";") %>%
+  janitor::clean_names() %>%
+  mutate(grade = round((g1+g2+g3)/3,2)) %>%
+  select(-g1,-g2,-g3) %>%
+  mutate(school = as.factor(school),
+         sex = as.factor(sex),
+         address = as.factor(address),
+         famsize = as.factor(famsize),
+         pstatus = as.factor(pstatus),
+         mjob = as.factor(mjob),
+         fjob = as.factor(fjob),
+         reason = as.factor(reason),
+         guardian = as.factor(guardian),
+         schoolsup = as.factor(schoolsup),
+         famsup = as.factor(famsup),
+         paid = as.factor(paid),
+         activities = as.factor(activities),
+         nursery = as.factor(nursery),
+         higher = as.factor(higher),
+         internet = as.factor(internet),
+         romantic = as.factor(romantic))
+
+student$letter_grade[student$grade <=20 & student$grade>=16] <- "A"
+student$letter_grade[student$grade <16 & student$grade>=14] <- "B"
+student$letter_grade[student$grade <14 & student$grade>=12] <- "C"
+student$letter_grade[student$grade <12 & student$grade>=10] <- "D"
+student$letter_grade[student$grade <10 & student$grade>=0] <- "F"
+
+```

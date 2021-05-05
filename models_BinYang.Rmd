@@ -1,0 +1,39 @@
+---
+title: "Midterm project: Student Performance in Math Class"
+author: "Bin Yang"
+output: 
+  pdf_document:
+    keep_tex: false
+    highlight: haddock
+urlcolor: blue    
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, echo = FALSE)
+
+library(tidyverse)
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(party)
+library(partykit)
+library(randomForest)
+library(ranger)
+library(gbm)
+```
+
+```{r read in data set}
+student = read.table("./student-mat.csv", header = TRUE, sep = ";") %>%
+  janitor::clean_names() %>%
+  mutate(grade = round((g1+g2+g3)/3,2),
+         letter_grade = case_when(grade >= 10 ~ "pass",
+                                  grade < 10 ~ "fail")) %>%
+  select(-g1,-g2,-g3,-grade) %>%
+  mutate_if(is.character, as.factor)
+```
+
+```{r}
+
+```
+
+

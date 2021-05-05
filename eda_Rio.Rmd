@@ -49,7 +49,8 @@ skimr::skim(student_df)
 
 ## exploritory analysis
 
-summary table for categorical
+### summary table for categorical
+
 ```{r, message=FALSE, warning=FALSE}
 library(gtsummary)
 
@@ -61,7 +62,7 @@ mat_categorical %>%
   tbl_summary()
 ```
 
-continuous variable plot
+### continuous variable plot
 
 ```{r, message=FALSE, warning=FALSE}
 # df of predictors 
@@ -93,7 +94,7 @@ plot_grid(plot1, plot2)
 ```
 
 
-Correlation plot
+### Correlation plot
 
 ```{r, message=FALSE, warning=FALSE}
 library(ggcorrplot)

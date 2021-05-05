@@ -36,6 +36,8 @@ student_df = read.table("./student-mat.csv", header = TRUE, sep = ";") %>%
                                  grade < 10 ~ "fail")) %>%
   dplyr::select(-g1,-g2,-g3,-grade) %>%
   mutate_if(is.character, as.factor)
+
+view(student_df)
 ```
 
 
@@ -52,8 +54,8 @@ summary table for categorical
 library(gtsummary)
 
 mat_categorical =
-  mat_df %>% 
-  dplyr::select(-age, -medu, -fedu, -traveltime, -studytime, -failures, -famrel, -freetime, -goout, -dalc,-walc,-health,-absences, -grade)
+  student_df %>% 
+  dplyr::select(-age, -medu, -fedu, -traveltime, -studytime, -failures, -famrel, -freetime, -goout, -dalc,-walc,-health,-absences)
 
 mat_categorical %>% 
   tbl_summary()
@@ -63,14 +65,16 @@ continuous variable plot
 
 ```{r, message=FALSE, warning=FALSE}
 # df of predictors 
-x_corr = mat_df %>% 
-  dplyr::select(-grade)
 
-x_corr = mat_df %>% 
-  dplyr::select(-school, -sex, -address,-famsize, -pstatus, -mjob, -fjob, -reason, -guardian, -schoolsup, -famsup , -paid, -activities, -nursery, -higher, -internet, -romantic, -grade)
+x_corr = student_df %>% 
+  dplyr::select(-school, -sex, -address,-famsize, -pstatus, -mjob, -fjob, -reason, -guardian, -schoolsup, -famsup , -paid, -activities, -nursery, -higher, -internet, -romantic, -letter_grade, -absences)
+
+
+x = student_df %>% 
+  dplyr::select(absences)
 
 # vector of response
-y_corr = mat_df$grade
+y_corr = student_df$letter_grade
 
 theme1 <- trellis.par.get()
 theme1$plot.symbol$col <- rgb(.2, .4, .2, .5)
@@ -79,8 +83,13 @@ theme1$plot.line$col <- rgb(.8, .1, .1, 1)
 theme1$plot.line$lwd <- 2
 theme1$strip.background$col <- rgb(.0, .2, .6, .2)
 trellis.par.set(theme1)
-featurePlot(x_corr, y_corr, plot = "scatter", labels = c("","Y"),
-            type = c("p"), layout = c(6, 3))
+plot1 = featurePlot(x_corr, y_corr, plot = "boxplot", labels = c("","Y"),
+            type = c("p"), layout = c(4, 3))
+plot2 = featurePlot(x, y_corr, plot = "boxplot", labels = c("","Y"),
+            type = c("p"), layout = c(1,1))
+
+library(cowplot)
+plot_grid(plot1, plot2)
 ```
 
 
@@ -90,8 +99,8 @@ Correlation plot
 library(ggcorrplot)
 
 corr_df = 
-  mat_df %>% 
-  select(age, medu, fedu, traveltime, studytime, failures, famrel, freetime, goout, dalc, walc, health, absences, grade) 
+  student_df %>% 
+  select(age, medu, fedu, traveltime, studytime, failures, famrel, freetime, goout, dalc, walc, health, absences, letter_grade) 
 
 # correlation plot with only continous var
 model.matrix(~0+., data = corr_df) %>% 
@@ -101,7 +110,7 @@ model.matrix(~0+., data = corr_df) %>%
              title = "Correlation of parameters of interest")
 
 # correlation plot with all variables
-model.matrix(~0+., data = mat_df) %>% 
+model.matrix(~0+., data = student_df) %>% 
   cor(use = "pairwise.complete.obs") %>% 
    ggcorrplot(show.diag = F, type="lower", 
              lab=TRUE, lab_size=2, 

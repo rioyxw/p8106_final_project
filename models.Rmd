@@ -8,13 +8,11 @@ output: html_document
 ```{r setup, include=FALSE}
 library(tidyverse)
 library(caret)
-library(rpart)
-library(rpart.plot)
-library(party)
-library(partykit)
-library(randomForest)
-library(ranger)
-library(gbm)
+library(MASS)
+library(mlbench)
+library(pROC)
+library(klaR)
+library(dplyr)
 
 knitr::opts_chunk$set(
   fig.width = 9,
@@ -40,32 +38,29 @@ scale_fill_discrete = scale_fill_viridis_d
 student = read.table("./student-mat.csv", header = TRUE, sep = ";") %>%
   janitor::clean_names() %>%
   mutate(grade = round((g1+g2+g3)/3,2)) %>%
-  select(-g1,-g2,-g3) %>%
-  mutate(school = as.factor(school),
-         sex = as.factor(sex),
-         address = as.factor(address),
-         famsize = as.factor(famsize),
-         pstatus = as.factor(pstatus),
-         mjob = as.factor(mjob),
-         fjob = as.factor(fjob),
-         reason = as.factor(reason),
-         guardian = as.factor(guardian),
-         schoolsup = as.factor(schoolsup),
-         famsup = as.factor(famsup),
-         paid = as.factor(paid),
-         activities = as.factor(activities),
-         nursery = as.factor(nursery),
-         higher = as.factor(higher),
-         internet = as.factor(internet),
-         romantic = as.factor(romantic))
+  dplyr::select(-g1,-g2,-g3) %>%
+  mutate(school = as.numeric(as.factor(school)),
+         sex = as.numeric(as.factor(sex)),
+         address = as.numeric(as.factor(address)),
+         famsize = as.numeric(as.factor(famsize)),
+         pstatus = as.numeric(as.factor(pstatus)),
+         mjob = as.numeric(as.factor(mjob)),
+         fjob = as.numeric(as.factor(fjob)),
+         reason = as.numeric(as.factor(reason)),
+         guardian = as.numeric(as.factor(guardian)),
+         schoolsup = as.numeric(as.factor(schoolsup)),
+         famsup = as.numeric(as.factor(famsup)),
+         paid = as.numeric(as.factor(paid)),
+         activities = as.numeric(as.factor(activities)),
+         nursery = as.numeric(as.factor(nursery)),
+         higher = as.numeric(as.factor(higher)),
+         internet = as.numeric(as.factor(internet)),
+         romantic = as.numeric(as.factor(romantic)))
 
-student$letter_grade[student$grade <=20 & student$grade>=16] <- "A"
-student$letter_grade[student$grade <16 & student$grade>=14] <- "B"
-student$letter_grade[student$grade <14 & student$grade>=12] <- "C"
-student$letter_grade[student$grade <12 & student$grade>=10] <- "D"
-student$letter_grade[student$grade <10 & student$grade>=0] <- "F"
+student$letter_grade[student$grade <=20 & student$grade>=10] <- "pass"
+student$letter_grade[student$grade <10 & student$grade>=0] <- "nopass"
 
-student_letter_grade <- student %>% select(-grade)
+student_letter_grade <- student %>% dplyr::select(-grade) %>% mutate(letter_grade = as.factor(letter_grade))
 ```
 
 ```{r, include = FALSE}
@@ -73,15 +68,60 @@ student_letter_grade <- student %>% select(-grade)
 
 set.seed(1)
 
-trainRows1 = createDataPartition(student_letter_grade$letter_grade, p = 0.8, list = FALSE)
-student_no_grade = model.matrix(letter_grade ~ ., student_letter_grade)[, -31]
-x = student_no_grade[trainRows, ]
-y = student_letter_grade$letter_grade[trainRows]
-x_test = student_no_grade[-trainRows, ]
-y_test = student_letter_grade$letter_grade[-trainRows]
+rowTrain = createDataPartition(student_letter_grade$letter_grade, p = 0.8, list = FALSE)
 
-ctrl1 = trainControl(method = "repeatedcv", number = 10, repeats = 5)
+student_no_grade = model.matrix(letter_grade ~ ., student_letter_grade)[, -31]
+x = student_no_grade[trainRows1, ]
+y = student_letter_grade$letter_grade[trainRows1]
+x_test = student_no_grade[-trainRows1, ]
+y_test = student_letter_grade$letter_grade[-trainRows1]
+
 ```
 
 ## Models
+
+```{r}
+# LDA
+
+lda.fit <- lda(letter_grade~., data = student_letter_grade,
+               summaryFunction = twoClassSummary,
+               subset = rowTrain)
+#plot(lda.fit)
+
+lda.fit$scaling
+
+#mean(predict(lda.fit)$x)
+
+ctrl <- trainControl(method = "repeatedcv", repeats = 5,
+                     classProbs = TRUE)
+
+set.seed(1)
+model.lda <- train(x = student_letter_grade[rowTrain,1:30],
+                   y = student_letter_grade$letter_grade[rowTrain],
+                   method = "lda",
+                   metric = "Accuracy",
+                   trControl = ctrl)
+
+#QDA
+set.seed(1)
+model.qda <- train(x = student_letter_grade[rowTrain,1:30],
+                   y = student_letter_grade$letter_grade[rowTrain],
+                   method = "qda",
+                   metric = "Accuracy",
+                   trControl = ctrl)
+
+#NB
+#set.seed(1)
+
+#nbGrid <- expand.grid(usekernel = c(FALSE,TRUE),
+#                      fL = 1, 
+#                      adjust = seq(.2, 3, by = .2))
+
+#model.nb <- train(x = student_letter_grade[rowTrain,1:30],
+#                  y = student_letter_grade$letter_grade[rowTrain],
+#                  method = "nb",
+#                  tuneGrid = nbGrid,
+#                  metric = "Accuracy",
+#                  trControl = ctrl)
+```
 

@@ -1,11 +1,20 @@
 ---
-title: "Midterm project: Student Performance in Math Class"
-author: "Bin Yang"
-output: 
+title: "Models"
+author: Bin Yang
+output:
   pdf_document:
-    keep_tex: false
-    highlight: haddock
-urlcolor: blue    
+    toc: yes
+    toc_depth: 2
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_depth: '2'
+header-includes:
+- \usepackage{fancyhdr}
+- \usepackage{lipsum}
+- \pagestyle{fancy}
+- \fancyhead[R]{\thepage}
+- \fancypagestyle{plain}{\pagestyle{fancy}}
 ---
 
 ```{r setup, include=FALSE}
@@ -32,11 +41,38 @@ library(gbm)
 #   mutate_if(is.character, as.factor)
 ```
 
-```{r}
-head(student)
+#### Classification trees   
+```{r classification tree: CART}
+set.seed(1)  
+
+rpart.fit = train(letter_grade ~ .,
+                  student_df,
+                  subset = rowTrain,
+                  method = "rpart",
+                  tuneGrid = data.frame(cp = exp(seq(-5, -2, len = 50))),
+                  trControl = ctrl,
+                  metric  = "ROC")
+ggplot(rpart.fit, highlight = TRUE)
+
+# rpart.plot(rpart.fit$finalModel)
+# Best tuning parameter:  
+rpart.fit$bestTune
 ```
 
-```{r classification tree: CART}
-rpart.fit = train()
+```{r classification tree: CIT}  
+set.seed(1)  
+
+ctree.fit = train(letter_grade ~ .,
+                  student_df,
+                  subset = rowTrain,
+                  method = "ctree",
+                  tuneGrid = data.frame(mincriterion = 1 - exp(seq(-2, -1, length =50))),
+                  metric = "ROC",
+                  trControl = ctrl) 
+ggplot(ctree.fit, highlight = TRUE)
+
+# plot(ctree.fit$finalModel)
+# Best tuning parameter:  
+ctree.fit$bestTune
 ```
 

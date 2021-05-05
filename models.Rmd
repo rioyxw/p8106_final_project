@@ -52,14 +52,12 @@ set.seed(1)
 rowTrain = createDataPartition(student_df$letter_grade, p = 0.8, list = FALSE)
 
 student_no_grade = model.matrix(letter_grade ~ ., student_df)[, -31]
-x = student_no_grade[rowTrain, ]
+x = student_no_grade[rowTrain, -1]
 y = student_df$letter_grade[rowTrain]
-x_test = student_no_grade[-rowTrain, ]
+x_test = student_no_grade[-rowTrain, -1]
 y_test = student_df$letter_grade[-rowTrain]
 
-ctrl <- trainControl(method = "repeatedcv", repeats = 5,
-                     summaryFunction = twoClassSummary, 
-                     classProbs = TRUE)
+ctrl <- trainControl(method = "repeatedcv", repeats = 5)
 ```
 
 ## Models
@@ -67,7 +65,7 @@ ctrl <- trainControl(method = "repeatedcv", repeats = 5,
 ```{r}
 # LDA
 
-lda.fit <- lda(letter_grade~., data = student_letter_grade,
+lda.fit <- lda(letter_grade~., data = student_df,
                summaryFunction = twoClassSummary,
                subset = rowTrain)
 #plot(lda.fit)
@@ -79,18 +77,16 @@ lda.fit$scaling
 
 
 set.seed(1)
-model.lda <- train(x = student_letter_grade[rowTrain,1:30],
-                   y = student_letter_grade$letter_grade[rowTrain],
+model.lda <- train(x = x,
+                   y = student_df$letter_grade[rowTrain],
                    method = "lda",
-                   metric = "Accuracy",
                    trControl = ctrl)
 
 #QDA
 set.seed(1)
-model.qda <- train(x = student_letter_grade[rowTrain,1:30],
-                   y = student_letter_grade$letter_grade[rowTrain],
+model.qda <- train(x = x,
+                   y = student_df$letter_grade[rowTrain],
                    method = "qda",
-                   metric = "Accuracy",
                    trControl = ctrl)
 
 #NB

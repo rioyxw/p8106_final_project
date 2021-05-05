@@ -23,17 +23,20 @@ library(gbm)
 ```
 
 ```{r read in data set}
-student = read.table("./student-mat.csv", header = TRUE, sep = ";") %>%
-  janitor::clean_names() %>%
-  mutate(grade = round((g1+g2+g3)/3,2),
-         letter_grade = case_when(grade >= 10 ~ "pass",
-                                  grade < 10 ~ "fail")) %>%
-  select(-g1,-g2,-g3,-grade) %>%
-  mutate_if(is.character, as.factor)
+# student = read.table("./student-mat.csv", header = TRUE, sep = ";") %>%
+#   janitor::clean_names() %>%
+#   mutate(grade = round((g1+g2+g3)/3,2),
+#          letter_grade = case_when(grade >= 10 ~ "pass",
+#                                   grade < 10 ~ "fail")) %>%
+#   select(-g1,-g2,-g3,-grade) %>%
+#   mutate_if(is.character, as.factor)
 ```
 
 ```{r}
-
+head(student)
 ```
 
+```{r classification tree: CART}
+rpart.fit = train()
+```
 

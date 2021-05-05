@@ -35,32 +35,13 @@ scale_fill_discrete = scale_fill_viridis_d
 
 ```{r, message=FALSE, warning=FALSE}
 
-student = read.table("./student-mat.csv", header = TRUE, sep = ";") %>%
+student_df = read.table("./student-mat.csv", header = TRUE, sep = ";") %>%
   janitor::clean_names() %>%
-  mutate(grade = round((g1+g2+g3)/3,2)) %>%
-  dplyr::select(-g1,-g2,-g3) %>%
-  mutate(school = as.numeric(as.factor(school)),
-         sex = as.numeric(as.factor(sex)),
-         address = as.numeric(as.factor(address)),
-         famsize = as.numeric(as.factor(famsize)),
-         pstatus = as.numeric(as.factor(pstatus)),
-         mjob = as.numeric(as.factor(mjob)),
-         fjob = as.numeric(as.factor(fjob)),
-         reason = as.numeric(as.factor(reason)),
-         guardian = as.numeric(as.factor(guardian)),
-         schoolsup = as.numeric(as.factor(schoolsup)),
-         famsup = as.numeric(as.factor(famsup)),
-         paid = as.numeric(as.factor(paid)),
-         activities = as.numeric(as.factor(activities)),
-         nursery = as.numeric(as.factor(nursery)),
-         higher = as.numeric(as.factor(higher)),
-         internet = as.numeric(as.factor(internet)),
-         romantic = as.numeric(as.factor(romantic)))
-
-student$letter_grade[student$grade <=20 & student$grade>=10] <- "pass"
-student$letter_grade[student$grade <10 & student$grade>=0] <- "nopass"
-
-student_letter_grade <- student %>% dplyr::select(-grade) %>% mutate(letter_grade = as.factor(letter_grade))
+  mutate(grade = round((g1+g2+g3)/3,2),
+        letter_grade = case_when(grade >= 10 ~ "pass",
+                                 grade < 10 ~ "fail")) %>%
+  dplyr::select(-g1,-g2,-g3,-grade) %>%
+  mutate_if(is.character, as.factor)
 ```
 
 ```{r, include = FALSE}
@@ -68,14 +49,17 @@ student_letter_grade <- student %>% dplyr::select(-grade) %>% mutate(letter_grad
 
 set.seed(1)
 
-rowTrain = createDataPartition(student_letter_grade$letter_grade, p = 0.8, list = FALSE)
+rowTrain = createDataPartition(student_df$letter_grade, p = 0.8, list = FALSE)
 
-student_no_grade = model.matrix(letter_grade ~ ., student_letter_grade)[, -31]
-x = student_no_grade[trainRows1, ]
-y = student_letter_grade$letter_grade[trainRows1]
-x_test = student_no_grade[-trainRows1, ]
-y_test = student_letter_grade$letter_grade[-trainRows1]
+student_no_grade = model.matrix(letter_grade ~ ., student_df)[, -31]
+x = student_no_grade[rowTrain, ]
+y = student_df$letter_grade[rowTrain]
+x_test = student_no_grade[-rowTrain, ]
+y_test = student_df$letter_grade[-rowTrain]
 
+ctrl <- trainControl(method = "repeatedcv", repeats = 5,
+                     summaryFunction = twoClassSummary, 
+                     classProbs = TRUE)
 ```
 
 ## Models
@@ -92,8 +76,7 @@ lda.fit$scaling
 
 #mean(predict(lda.fit)$x)
 
-ctrl <- trainControl(method = "repeatedcv", repeats = 5,
-                     classProbs = TRUE)
+
 
 set.seed(1)
 model.lda <- train(x = student_letter_grade[rowTrain,1:30],

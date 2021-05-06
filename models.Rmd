@@ -1,11 +1,25 @@
 ---
 title: "models"
 author: "Elaine Xu"
-date: "5/2/2021"
-output: html_document
+output:
+  pdf_document:
+    toc: yes
+    toc_depth: 2
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_depth: '2'
+header-includes:
+- \usepackage{fancyhdr}
+- \usepackage{lipsum}
+- \pagestyle{fancy}
+- \fancyhead[R]{\thepage}
+- \fancypagestyle{plain}{\pagestyle{fancy}}
 ---
 
 ```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, echo = FALSE)
+
 library(tidyverse)
 library(caret)
 library(MASS)
@@ -13,6 +27,13 @@ library(mlbench)
 library(pROC)
 library(klaR)
 library(dplyr)
+library(rpart)
+library(rpart.plot)
+library(party)
+library(partykit)
+library(randomForest)
+library(ranger)
+library(gbm)
 
 knitr::opts_chunk$set(
   fig.width = 9,
@@ -31,9 +52,7 @@ scale_colour_discrete = scale_color_viridis_d
 scale_fill_discrete = scale_fill_viridis_d
 ```
 
-## load data
-
-```{r, message=FALSE, warning=FALSE}
+```{r, load in data set, message=FALSE, warning=FALSE}
 
 student_df = read.table("./student-mat.csv", header = TRUE, sep = ";") %>%
   janitor::clean_names() %>%
@@ -62,45 +81,211 @@ ctrl <- trainControl(method = "repeatedcv", repeats = 5)
 
 ## Models
 
+#### Linear methods: glm, penalized logistic regression, GAM, MARS
+```{r glm}
+set.seed(1)
+glm.fit = train(x = student_df[rowTrain, 1:30],
+                y = student_df$letter_grade[rowTrain],
+                method = "glm",
+                metric = "Accuracy",
+                trControl = ctrl)
+```
+
+```{r penalized logistic regression}
+glmnGrid = expand.grid(.alpha = seq(0,1,len=6),
+                       .lambda = exp(seq(-8,-2,len=20)))
+
+set.seed(1)
+glmn.fit = train(x = x,
+                y = y,
+                method = "glmnet",
+                tuneGrid = glmnGrid,
+                metric = "Accuracy",
+                trControl = ctrl)
+plot(glmn.fit, xTrans=function(x) log(x))
+glmn.fit$bestTune
+```
+
+```{r GAM}
+set.seed(1)
+gam.fit = train(x = student_df[rowTrain, 1:30],
+                y = student_df$letter_grade[rowTrain],
+                method = "gam",
+                metric = "Accuracy",
+                trControl = ctrl)
+```
+
+```{r MARS,cache=TRUE}
+set.seed(1)
+mars.fit = train(x = x,
+                 y = y,
+                 method = "earth",
+                 tuneGrid = expand.grid(degree = 1:3,
+                                       nprune = 2:15),
+                 metric = "Accuracy",
+                 trControl = ctrl)
+plot(mars.fit)
+```
+
+#### LDA/QDA/NB  
+
+```{r Lda}
+set.seed(1)
+lda.fit = train(x = x,
+                y = student_df$letter_grade[rowTrain],
+                method = "lda",
+                trControl = ctrl)
+```
+
+```{r qda}
+set.seed(1)
+qda.fit = train(x = x,
+                y = student_df$letter_grade[rowTrain],
+                method = "qda",
+                trControl = ctrl)
+```
+
+```{r NB,cache=TRUE}
+set.seed(1)
+
+nbGrid = expand.grid(usekernel = c(FALSE,TRUE),
+                     fL = 6,
+                     adjust = seq(3, 5, by = .2))
+
+nb.fit = train(x = student_letter_grade[rowTrain,1:30],
+               y = student_letter_grade$letter_grade[rowTrain],
+               method = "nb",
+               tuneGrid = nbGrid,
+               metric = "Accuracy",
+               trControl = ctrl)
+plot(nb.fit)
+```
+
+#### Classification trees   
+```{r classification tree: CART}
+set.seed(1)  
+
+rpart.fit = train(letter_grade ~ .,
+                  student_df,
+                  subset = rowTrain,
+                  method = "rpart",
+                  tuneGrid = data.frame(cp = exp(seq(-5, -2, len = 50))),
+                  trControl = ctrl,
+                  metric  = "Accuracy")
+ggplot(rpart.fit, highlight = TRUE)
+
+# rpart.plot(rpart.fit$finalModel)
+# Best tuning parameter:  
+rpart.fit$bestTune
+```
+
+```{r classification tree: CIT}  
+set.seed(1)  
+
+ctree.fit = train(letter_grade ~ .,
+                  student_df,
+                  subset = rowTrain,
+                  method = "ctree",
+                  tuneGrid = data.frame(mincriterion = 1 - exp(seq(-5, -3, length =50))),
+                  metric = "Accuracy",
+                  trControl = ctrl) 
+ggplot(ctree.fit, highlight = TRUE)
+
+# plot(ctree.fit$finalModel)
+# Best tuning parameter:  
+ctree.fit$bestTune
+```
+
+#### Random Forest   
+```{r random forest,cache=TRUE}
+rf.grid = expand.grid(mtry = 8:30,
+                      splitrule = "gini",
+                      min.node.size = seq(from = 2, to = 10, by = 2))  
+
+set.seed(1)  
+
+rf.fit = train(letter_grade ~ .,
+               student_df,
+               subset = rowTrain,
+               method = "ranger", 
+               tuneGrid = rf.grid,
+               metric = "Accuracy",
+               trControl = ctrl)
+ggplot(rf.fit, highlight = TRUE)
+
+# Best tuning parameter
+rf.fit$bestTune
+```
+
+#### Adaboost   
+```{r adaboost,cache=TRUE}
+gbmA.grid = expand.grid(n.trees = c(1000, 2000, 3000),
+                        interaction.depth = 1:3,
+                        shrinkage = c(0.001, 0.003, 0.005),
+                        n.minobsinnode = 1)
+
+set.seed(1) 
+
+gbmA.fit = train(letter_grade ~ .,
+                 student_df,
+                 subset = rowTrain,
+                 tuneGrid = gbmA.grid,
+                 trControl = ctrl,
+                 method = "gbm",
+                 distribution = "adaboost",
+                 metric = "Accuracy",
+                 verbose = FALSE)
+
+ggplot(gbmA.fit, highlight = TRUE)
+```
+
+
+#### Suppport vector classifier and SVM   
+```{r support vector classifier,cache=TRUE}
+set.seed(1)  
+svml.fit = train(letter_grade ~ .,
+                 data = student_df[rowTrain,],
+                 method = "svmLinear",
+                 tuneGrid = data.frame(C = exp(seq(-4,2,len=20))),
+                 trControl = ctrl)
+
+plot(svml.fit, highlight = TRUE, xTrans = log)
+svml.fit$bestTune
+```
+
+```{r svm,cache=TRUE}
+svmr.grid = expand.grid(C = exp(seq(-6, 1, len=10)),
+                        sigma = exp(seq(-8, 0, len=10)))
+
+set.seed(1) 
+svmr.fit = train(letter_grade ~ ., student_df,
+                 subset = rowTrain, 
+                 method = "svmRadialSigma",
+                 preProcess = c("center", "scale"),
+                 tuneGrid = svmr.grid,
+                 trControl = ctrl)
+
+plot(svmr.fit, highlight = TRUE) 
+svmr.fit$bestTune
+```   
+
+## Model comparison  
 ```{r}
-# LDA
+res = resamples(list(GLM = glm.fit,
+                     GLMN = glmn.fit,
+                     GAM = gam.fit,
+                     MARS = mars.fit,
+                     LDA = lda.fit,
+                     QDA = qda.fit,
+                     NB = nb.fit,
+                     RPART = rpart.fit,
+                     CTREE = ctree.fit,
+                     RF = rf.fit,
+                     GBM = gbmA.fit,
+                     SVML = svml.fit,
+                     SVMR = svmr.fit))
 
-lda.fit <- lda(letter_grade~., data = student_df,
-               summaryFunction = twoClassSummary,
-               subset = rowTrain)
-#plot(lda.fit)
+summary(res)
 
-lda.fit$scaling
-
-#mean(predict(lda.fit)$x)
-
-
-
-set.seed(1)
-model.lda <- train(x = x,
-                   y = student_df$letter_grade[rowTrain],
-                   method = "lda",
-                   trControl = ctrl)
-
-#QDA
-set.seed(1)
-model.qda <- train(x = x,
-                   y = student_df$letter_grade[rowTrain],
-                   method = "qda",
-                   trControl = ctrl)
-
-#NB
-#set.seed(1)
-
-#nbGrid <- expand.grid(usekernel = c(FALSE,TRUE),
-#                      fL = 1, 
-#                      adjust = seq(.2, 3, by = .2))
-
-#model.nb <- train(x = student_letter_grade[rowTrain,1:30],
-#                  y = student_letter_grade$letter_grade[rowTrain],
-#                  method = "nb",
-#                  tuneGrid = nbGrid,
-#                  metric = "Accuracy",
-#                  trControl = ctrl)
 ```
 

@@ -149,8 +149,8 @@ qda.fit = train(x = x,
 set.seed(1)
 
 nbGrid = expand.grid(usekernel = c(FALSE,TRUE),
-                     fL = 6,
-                     adjust = seq(3, 5, by = .2))
+                     fL = 10,
+                     adjust = seq(4, 10, by = .2))
 
 nb.fit = train(x = student_letter_grade[rowTrain,1:30],
                y = student_letter_grade$letter_grade[rowTrain],

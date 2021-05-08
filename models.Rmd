@@ -152,8 +152,8 @@ nbGrid = expand.grid(usekernel = c(FALSE,TRUE),
                      fL = 10,
                      adjust = seq(4, 10, by = .2))
 
-nb.fit = train(x = student_letter_grade[rowTrain,1:30],
-               y = student_letter_grade$letter_grade[rowTrain],
+nb.fit = train(x = student_df[rowTrain,1:30],
+               y = student_df$letter_grade[rowTrain],
                method = "nb",
                tuneGrid = nbGrid,
                metric = "Accuracy",

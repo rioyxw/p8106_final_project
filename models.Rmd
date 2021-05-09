@@ -34,6 +34,9 @@ library(partykit)
 library(randomForest)
 library(ranger)
 library(gbm)
+library(ggplot2)
+library(vip)
+library(DALEX)
 
 options(
   ggplot2.continuous.colour = "viridis",
@@ -282,4 +285,41 @@ summary(res)
 bwplot(res, metric = "Accuracy")
 ```
 
+## Result   
+```{r}
+coef(mars.fit$finalModel)
+```
+
+Since MARS was the best model with the best prediction accuracy demonstrated by the resampling comparison, we examined its test data set performance. We obtained a test accuracy of $62.82\%$. 
+```{r}
+pred.mars = predict(mars.fit, newdata = x_test)
+confusionMatrix(data = pred.mars,
+                reference = y_test)
+```
+
+We further examined variable importance, and we can see that "failures", "schoolsupyes" and "goout" were the top three important features in making the prediction.      
+```{r}
+explainer_mars = explain(mars.fit,
+                         label = "MARS",
+                         data = x,
+                         y = as.numeric(student_df$letter_grade[rowTrain] == "pass"),
+                         verbose = FALSE)
+
+vi_mars = model_parts(explainer_mars)
+
+plot(vi_mars)
+```
+
+We also made partial dependence profile for "failures" and "schoolsupyes". As demonstrated by the plots, the average probability of "pass" decreases as failures increases and for students without extra educational school support. 
+```{r}
+p1 = model_profile(explainer_mars,
+              variable = "failures",
+              type = "partial")
+
+p2 = model_profile(explainer_mars,
+              variable = "schoolsupyes",
+              type = "partial")
+
+plot(p1,p2)
+```
 

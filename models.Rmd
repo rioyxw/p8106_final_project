@@ -18,7 +18,7 @@ header-includes:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(warning = FALSE, message = FALSE, echo = FALSE)
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, echo = FALSE, cache=TRUE)
 
 library(tidyverse)
 library(caret)
@@ -34,8 +34,6 @@ library(partykit)
 library(randomForest)
 library(ranger)
 library(gbm)
-
-theme_set(theme_minimal() + theme(legend.position = "bottom"))
 
 options(
   ggplot2.continuous.colour = "viridis",
@@ -100,7 +98,7 @@ plot(glmn.fit, xTrans=function(x) log(x))
 glmn.fit$bestTune
 ```
 
-```{r GAM}
+```{r GAM,cache=TRUE}
 set.seed(1)
 gam.fit = train(x = student_df[rowTrain, 1:30],
                 y = student_df$letter_grade[rowTrain],

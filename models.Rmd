@@ -287,6 +287,6 @@ res = resamples(list(GLM = glm.fit,
 
 summary(res)
 
-bwplot(res, metric = "Accuracy")
+bwplot(res)
 ```
 

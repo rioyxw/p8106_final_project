@@ -35,12 +35,6 @@ library(randomForest)
 library(ranger)
 library(gbm)
 
-knitr::opts_chunk$set(
-  fig.width = 9,
-  fig.asp = .6,
-  out.width = "90%"
-)
-
 theme_set(theme_minimal() + theme(legend.position = "bottom"))
 
 options(
@@ -289,4 +283,5 @@ summary(res)
 
 bwplot(res, metric = "Accuracy")
 ```
+
 

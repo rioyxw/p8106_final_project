@@ -3,6 +3,7 @@ title: "Final Report: Student Performance in Math Class"
 author: "Elaine Xu, Rio Yan, Bin Yang (Group 8)"
 output:
   pdf_document:
+    latex_engine: xelatex
     fig_caption: yes
     toc: yes
     toc_depth: 2
@@ -384,7 +385,13 @@ Our study also has limitations. Our data is not diversified enough, less than fo
 
 \newpage 
 
-# Appendix    
+# Appendix
+```{r, message=FALSE, warning=FALSE, fig.cap="\\label{fig:figs}Skim summary table"}
+skimr::skim(student_df)
+```
+
+\ 
+
 ```{r, message=FALSE, warning=FALSE, fig.cap="\\label{fig:figs}Density plot for numeric features"}
 # df of predictors 
 

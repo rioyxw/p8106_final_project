@@ -3,6 +3,7 @@ title: "Final Report: Student Performance in Math Class"
 author: "Elaine Xu, Rio Yan, Bin Yang (Group 8)"
 output:
   pdf_document:
+    fig_caption: yes
     toc: yes
     toc_depth: 2
   html_document:
@@ -37,6 +38,8 @@ library(gbm)
 library(ggplot2)
 library(vip)
 library(DALEX)
+library(cowplot)
+library(ggcorrplot)
 
 options(
   ggplot2.continuous.colour = "viridis",
@@ -82,9 +85,11 @@ ctrl <- trainControl(method = "repeatedcv", repeats = 5)
 ```
 
 # Exploratory analysis/visualization   
-The summary table from the skim function outputs both categorical and continuous variables. From the categorical variables’ summary table, we can see that there are more students from the GP school, more females, more students live in the urban area, more students have a family size bigger than 3, most of the students’ parents live together, most of the students’ parents have a job and work in civil services, most students’ guardian is mother, most students have extra educational support, attended nursery school, want to take higher education, and have internet access at home. From the continuous variables summary table, we can see that the average student age is 16.7 years old, mothers’ average education level is higher than father’s, average home to school travel time is around 15 minutes, average weekly study time is around 2 to 5 hours, the average number of past class failures is less than 1, the average quality of the family relationship is high, average free time after school and going out with friends times are average, weekend alcohol consumption is higher than workday alcohol consumption, current health status is good, average school absences is around 5 times, and average math grade is around 10.68 and normally distributed. We then used the trellis boxplot to explore the relationship between math grade and other continuous variables. Most of the variables appear to have similar distributions, with weekly study time(studytime), number of past failures(failures), age, mother’s education(medu), and father’s education(fedu) appear to have stronger associations. We also used the trellis density plot to get a better visualization of how the data is distributed.   
+The summary table from the skim function outputs both categorical and continuous variables. From the categorical variables’ summary table, we can see that there are more students from the GP school, more females, more students live in the urban area, more students have a family size bigger than 3, most of the students’ parents live together, most of the students’ parents have a job and work in civil services, most students’ guardian is mother, most students have extra educational support, attended nursery school, want to take higher education, and have internet access at home. From the continuous variables summary table, we can see that the average student age is 16.7 years old, mothers’ average education level is higher than father’s, average home to school travel time is around 15 minutes, average weekly study time is around 2 to 5 hours, the average number of past class failures is less than 1, the average quality of the family relationship is high, average free time after school and going out with friends times are average, weekend alcohol consumption is higher than workday alcohol consumption, current health status is good, average school absences is around 5 times, and average math grade is around 10.68 and normally distributed. We then used the trellis boxplot to explore the relationship between math grade and other continuous variables. Most of the variables appear to have similar distributions, with weekly study time(studytime), number of past failures(failures), age, mother’s education(medu), and father’s education(fedu) appear to have stronger associations. We also used the trellis density plot to get a better visualization of how the data is distributed.     
 
-Before proceeding, it is important to assess crude correlation among relevant variables, in case issues of multicollinearity arise during model development. We used model.matrix to plot out the correlation graph by only including the continuous variables. However, none of the variables are highly correlated (r < |0.70|) with each other. This might be due to categorical data exclusion. If only focusing on the correlation values between each predictor and the outcome of interest, we might predict that number of school absences (absences), current health status (health), weekend alcohol consumption (walc), workday alcohol consumption (dalc), going out with friends (goout), quality of family relationships (famrel), number of past class failures (failures), home to school travel time (traveltime), and age have negative correlations with being able to obtain a passing grade. We might also predict that weekly study time (studytime), father’s education (fedu), and mother’s education (medu) have positive correlations with a passing grade.
+Before proceeding, it is important to assess crude correlation among relevant variables, in case issues of multicollinearity arise during model development. We used model.matrix to plot out the correlation graph by only including the continuous variables. However, none of the variables are highly correlated (r < |0.70|) with each other. This might be due to categorical data exclusion. If only focusing on the correlation values between each predictor and the outcome of interest, we might predict that number of school absences (absences), current health status (health), weekend alcohol consumption (walc), workday alcohol consumption (dalc), going out with friends (goout), quality of family relationships (famrel), number of past class failures (failures), home to school travel time (traveltime), and age have negative correlations with being able to obtain a passing grade. We might also predict that weekly study time (studytime), father’s education (fedu), and mother’s education (medu) have positive correlations with a passing grade.   
+
+\newpage 
 
 # Models   
 
@@ -296,7 +301,7 @@ svmr.fit = train(letter_grade ~ ., student_df,
    
 We compared the above models employed using the resampling accuracy and kappa as demonstrated by the below boxplot. We concluded that the MARS model was the best model with the best mean prediction accuracy.   
     
-```{r}
+```{r fig.cap="\\label{fig:figs}model comparison"}
 res = resamples(list(GLM = glm.fit,
                      GLMN = glmn.fit,
                      GAM = gam.fit,
@@ -334,7 +339,7 @@ y &= 0.713 - 2.078\times h(failures-1) + 1.202 \times h(1-failures) - 2.135 \tim
 \end{aligned}
 $$
 
-```{r}
+```{r fig.cap="\\label{fig:figs}MARS model tuning"}
 plot(mars.fit)
 #coef(mars.fit$finalModel)
 ```  
@@ -342,31 +347,94 @@ plot(mars.fit)
 \newpage 
 
 We further examined variable importance, and we can see that "failures", "schoolsupyes" and "goout" were the top three important features in making the prediction.      
-```{r fig.asp = .7}
-explainer_mars = explain(mars.fit,
+```{r fig.asp = .7, fig.cap="\\label{fig:figs}variable importance"}
+explainer_mars = DALEX::explain(mars.fit,
                          label = "MARS",
                          data = x,
                          y = as.numeric(student_df$letter_grade[rowTrain] == "pass"),
                          verbose = FALSE)
 
-vi_mars = model_parts(explainer_mars)
+vi_mars = DALEX::model_parts(explainer_mars)
 
 plot(vi_mars)
 ```
 
 We also made partial dependence profile for "failures" and "schoolsupyes". As demonstrated by the plots, the average probability of "pass" decreases as failures increases and for students without extra educational school support.  
 
-```{r fig.asp = .5}
-p1 = model_profile(explainer_mars,
+```{r fig.asp = .4, fig.cap="\\label{fig:figs}partial dependence profile"}
+p1 = DALEX::model_profile(explainer_mars,
               variable = "failures",
               type = "partial")
 
-p2 = model_profile(explainer_mars,
+p2 = DALEX::model_profile(explainer_mars,
               variable = "schoolsupyes",
               type = "partial")
 
 plot(p1,p2)
 ```
 
-# Conclusions   
+\newpage 
 
+# Conclusions   
+Education is an essential factor for long-term success in the future. Of all the core classes, mathematics, as a scientific language, is a very powerful tool. Core classes of Mathematics provide fundamental knowledge for many subjects, which is one of the reasons that is so important to study it. The goal for this project is to identify the key variables that affect educational success or failure in mathematics through students' studying progress.   
+
+Based on the model comparison, MARS had the highest accuracy and the Kappa value. Thus it outperformed other models to be the best model fit for our dataset with an overall mean accuracy of 70.8%. This result was out of our expectation. We were expecting classification models to perform better than regression models. As advocated by the final model of MARS, we can see that “failures”, “schoolsupyes” and “goout” were the top three important features in making the prediction. The predictor "failures" is the most important features in the results of several different models which met our expectation. By using repeated cross-validation, our final model obtained "failures", "schoolsupyes", "goout", "absences", "medu" and "mjob (teacher)" and "fjob (other)".    
+
+Our study also has limitations. Our data is not diversified enough, less than four hundred data represents as a small dataset. At the same time, the data was collected from only two Portuguese schools, indicating that some features collected in the data set may be affected by environmental, region or other factors, and will lead to data bias. 
+
+\newpage 
+
+# Appendix    
+```{r, message=FALSE, warning=FALSE, fig.cap="\\label{fig:figs}Density plot for numeric features"}
+# df of predictors 
+
+x_corr = student_df %>% 
+  dplyr::select(-school, -sex, -address,-famsize, -pstatus, -mjob, -fjob, -reason, -guardian, -schoolsup, -famsup , -paid, -activities, -nursery, -higher, -internet, -romantic, -letter_grade, -absences)
+
+
+x_plot = student_df %>% 
+  dplyr::select(absences)
+
+# vector of response
+y_corr = student_df$letter_grade
+
+theme1 <- trellis.par.get()
+theme1$plot.symbol$col <- rgb(.2, .4, .2, .5)
+theme1$plot.symbol$pch <- 16
+theme1$plot.line$col <- rgb(.8, .1, .1, 1)
+theme1$plot.line$lwd <- 2
+theme1$strip.background$col <- rgb(.0, .2, .6, .2)
+trellis.par.set(theme1)
+plot1 = featurePlot(x_corr, y_corr, plot = "boxplot", labels = c("","Y"),
+            type = c("p"), layout = c(4, 3))
+plot2 = featurePlot(x_plot, y_corr, plot = "boxplot", labels = c("","Y"),
+            type = c("p"), layout = c(1,1))
+
+plot3 = featurePlot(dplyr::select_if(student_df, is.numeric),
+                    y = y_corr,
+                    scales = list(x =list(relation ="free"),
+                                  y =list(relation ="free")),
+                    plot = "density", pch = "|",
+                    auto.key = list(columns = 2))
+
+plot3 
+```
+
+
+```{r fig.cap="\\label{fig:figs}box plot for numeric features"}
+plot_grid(plot1, plot2)
+```
+
+```{r fig.asp = 0.7, fig.cap="\\label{fig:figs}Correlation plot for numeric features"}
+corr_df = 
+  student_df %>% 
+  dplyr::select(age, medu, fedu, traveltime, studytime, failures, famrel, freetime, goout, dalc, walc, health, absences, letter_grade) 
+
+# correlation plot with only continous var
+model.matrix(~0+., data = corr_df) %>% 
+  cor(use = "pairwise.complete.obs") %>% 
+   ggcorrplot(show.diag = F, type="lower", 
+             lab=TRUE, lab_size=2, 
+             tl.cex = 5,
+             title = "Correlation of parameters of interest")
+```

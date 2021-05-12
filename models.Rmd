@@ -21,7 +21,6 @@ header-includes:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(warning = FALSE, message = FALSE, echo = FALSE, cache=TRUE)
-
 library(tidyverse)
 library(caret)
 library(MASS)
@@ -41,12 +40,10 @@ library(vip)
 library(DALEX)
 library(cowplot)
 library(ggcorrplot)
-
 options(
   ggplot2.continuous.colour = "viridis",
   ggplot2.continuous.fill = "viridis"
 )
-
 scale_colour_discrete = scale_color_viridis_d
 scale_fill_discrete = scale_fill_viridis_d
 ```
@@ -59,7 +56,6 @@ Our final project dataset comes from the University of California Irvine’s mac
 The summary table output from the skim function shows that the dataset contains 395 rows and 33 columns, with 17 nominal variables and 16 numeric variables. The dataset is very clean with no missing or unreasonable values. We plan to use the math grade as the outcome variable and the data exists three grades, G1, G2, G3, each representing first, second, and final period of grade. According to the source website for the data, G1 and G2 are highly correlated, so there might be some multicollinearity problems. We examined the three grade variables in the skim table and found that their mean and standard deviation are similar, and the histograms also seem to be normally distributed. For simplicity, we took the mean of the three periods of grade to get only one continuous outcome variable, grade, in representing the overall grade performance for students. We also created a new binary variable called letter grade through stratification. If the grade is below 10, we marked it as “fail”, and if the grade is equal to or above 10, we marked it as “pass”. 
 
 ```{r, load in data set, message=FALSE, warning=FALSE}
-
 student_df = read.table("./student-mat.csv", header = TRUE, sep = ";") %>%
   janitor::clean_names() %>%
   mutate(grade = round((g1+g2+g3)/3,2),
@@ -71,24 +67,20 @@ student_df = read.table("./student-mat.csv", header = TRUE, sep = ";") %>%
 
 ```{r, include = FALSE}
 # Set up train/test data for letter grade dataset
-
 set.seed(1)
-
 rowTrain = createDataPartition(student_df$letter_grade, p = 0.8, list = FALSE)
-
 student_no_grade = model.matrix(letter_grade ~ ., student_df)[, -31]
 x = student_no_grade[rowTrain, -1]
 y = student_df$letter_grade[rowTrain]
 x_test = student_no_grade[-rowTrain, -1]
 y_test = student_df$letter_grade[-rowTrain]
-
 ctrl <- trainControl(method = "repeatedcv", repeats = 5)
 ```
 
 # Exploratory analysis/visualization   
 The summary table from the skim function outputs both categorical and continuous variables. From the categorical variables’ summary table, we can see that there are more students from the GP school, more females, more students live in the urban area, more students have a family size bigger than 3, most of the students’ parents live together, most of the students’ parents have a job and work in civil services, most students’ guardian is mother, most students have extra educational support, attended nursery school, want to take higher education, and have internet access at home. From the continuous variables summary table, we can see that the average student age is 16.7 years old, mothers’ average education level is higher than father’s, average home to school travel time is around 15 minutes, average weekly study time is around 2 to 5 hours, the average number of past class failures is less than 1, the average quality of the family relationship is high, average free time after school and going out with friends times are average, weekend alcohol consumption is higher than workday alcohol consumption, current health status is good, average school absences is around 5 times, and average math grade is around 10.68 and normally distributed. We then used the trellis boxplot to explore the relationship between math grade and other continuous variables. Most of the variables appear to have similar distributions, with weekly study time(studytime), number of past failures(failures), age, mother’s education(medu), and father’s education(fedu) appear to have stronger associations. We also used the trellis density plot to get a better visualization of how the data is distributed.     
 
-Before proceeding, it is important to assess crude correlation among relevant variables, in case issues of multicollinearity arise during model development. We used model.matrix to plot out the correlation graph by only including the continuous variables. However, none of the variables are highly correlated (r < |0.70|) with each other. This might be due to categorical data exclusion. If only focusing on the correlation values between each predictor and the outcome of interest, we might predict that number of school absences (absences), current health status (health), weekend alcohol consumption (walc), workday alcohol consumption (dalc), going out with friends (goout), quality of family relationships (famrel), number of past class failures (failures), home to school travel time (traveltime), and age have negative correlations with being able to obtain a passing grade. We might also predict that weekly study time (studytime), father’s education (fedu), and mother’s education (medu) have positive correlations with a passing grade.   
+Before proceeding, it is important to assess crude correlation among relevant variables, in case issues of multicollinearity arise during model development. We used _model.matrix_ to plot out the correlation graph by only including the continuous variables. However, none of the variables are highly correlated (r < |0.70|) with each other. This might be due to categorical data exclusion. If only focusing on the correlation values between each predictor and the outcome of interest, we might predict that number of school absences (absences), current health status (health), weekend alcohol consumption (walc), workday alcohol consumption (dalc), going out with friends (goout), quality of family relationships (famrel), number of past class failures (failures), home to school travel time (traveltime), and age have negative correlations with being able to obtain a passing grade. We might also predict that weekly study time (studytime), father’s education (fedu), and mother’s education (medu) have positive correlations with a passing grade.   
 
 \newpage 
 
@@ -98,7 +90,7 @@ In order to perform the classification on the letter grade, we employed the foll
 
 ## Linear methods: glm, penalized logistic regression, GAM, MARS     
 
-We first considered the linear methods for classification, including logistic regression, penalized logistic regression, generalized additive model, and multivariate adaptive regression splines. The logistic regression makes the assumptions that the observations are independent, the independent variables should not be highly correlated, linearity of independent variables, and log odds. Since our data set contains a relatively large number of predictors, we also performed penalized logistic regression and applied a penalization coefficient $\lambda$ and mixing proportion coefficient $\alpha$ to control for the number of predictors. Using repeated cross-validations, we obtained the best tuning parameter of $\alpha = 0.4$ and $\lambda = 0.0987$ respectively. Due to the nonlinearity existing in the data set, we also considered using GAM and MARS models. For the MARS model, the best tuning parameters, the degree of interactions of $1$ and the number of retained terms $9$ were also selected using repeated cross-validations.   
+We first considered the linear methods for classification, including logistic regression, penalized logistic regression, generalized additive model, and multivariate adaptive regression splines. The logistic regression makes the assumptions that the observations are independent, the independent variables should not be highly correlated, linearity of independent variables, and log odds. Since our data set contains a relatively large number of predictors, we also performed penalized logistic regression and applied a penalization coefficient $\lambda$ and mixing proportion coefficient $\alpha$ to control for the number of predictors. Using repeated cross-validations, we obtained the best tuning parameter of $\alpha = 0.4$ and $\lambda = 0.0987$ respectively. Due to the nonlinearity existing in the data set, we also considered using GAM and MARS models. For the MARS model, the best tuning parameters, the degree of interactions of $1$, and the number of retained terms $9$ were also selected using repeated cross-validations.   
 
 ```{r glm}
 set.seed(1)
@@ -112,7 +104,6 @@ glm.fit = train(x = student_df[rowTrain, 1:30],
 ```{r penalized logistic regression}
 glmnGrid = expand.grid(.alpha = seq(0,1,len=6),
                        .lambda = exp(seq(-8,-2,len=20)))
-
 set.seed(1)
 glmn.fit = train(x = x,
                 y = y,
@@ -148,7 +139,7 @@ mars.fit = train(x = x,
 
 ## LDA/QDA/NB    
    
-In the beginning, we wanted to use discriminant analysis because we split the outcome into more than two categories. However, after we adjusted the outcome to binary, we decided to remain the discriminant analysis and test their fitness for this set of data. For discriminant analysis models, we selected linear discriminant analysis, quadratic discriminant analysis, and naive bayes models. Because of the size of our data and the number of predictors, we were not expecting discriminant models to outperform logistic regression. For the naive bayes model, we obtained best tuning parameters, $fl = 10$ for the "Laplace Correction" and $adjusts = 4$ for the adjust parameter controlling the bandwiths of the kernal density estimates. After we compared the results of all the models, LDA offers a better fit for the data among these three models and outperforms logistic regression. This illustrates that the Bayes decision boundary is more likely to be linear instead of nonlinear. The mean accuracy of QDA is only $64.08\%$, and for LDA is $67.45\%$.   
+In the beginning, we wanted to use discriminant analysis because we split the outcome into more than two categories. However, after we adjusted the outcome to binary, we decided to remain the discriminant analysis and test their fitness for this set of data. For discriminant analysis models, we selected linear discriminant analysis, quadratic discriminant analysis, and naive Bayes models. Because of the size of our data and the number of predictors, we were not expecting discriminant models to outperform logistic regression. For the naive Bayes model, we obtained best tuning parameters, $fl = 10$ for the "Laplace Correction" and $adjusts = 4$ for the adjust parameter controlling the bandwidths of the kernel density estimates. After we compared the results of all the models, LDA offers a better fit for the data among these three models and outperforms logistic regression. This illustrates that the Bayes decision boundary is more likely to be linear instead of nonlinear. The mean accuracy of QDA is only $64.08\%$, and for LDA is $67.45\%$.   
 
 ```{r Lda}
 set.seed(1)
@@ -168,11 +159,9 @@ qda.fit = train(x = x,
 
 ```{r NB,cache=TRUE}
 set.seed(1)
-
 nbGrid = expand.grid(usekernel = c(FALSE,TRUE),
                      fL = 10,
                      adjust = seq(4, 10, by = .2))
-
 nb.fit = train(x = student_df[rowTrain,1:30],
                y = student_df$letter_grade[rowTrain],
                method = "nb",
@@ -185,13 +174,12 @@ nb.fit = train(x = student_df[rowTrain,1:30],
 
 ## Tree-based methods     
    
-We also employed tree-based methods including single classification tree, random forest, and boosting. Tree-based models allow for the learning of non-linear decision boundaries but are based on little theoretical basis and employ greedy search with no clear optimization formula. A single classification tree is simple and useful for interpretations but may not perform well in terms of prediction accuracy. Additionally, trees can be very non-robust. In other words, a small change in the data can cause a large change in the final estimated tree. By using random forest, the predictive performance of trees can be substantially improved and the variance can be reduced. Similarly, using boosting methods can also reduce the variances and improve the prediction accuracy. 
+We also employed tree-based methods including single classification tree, random forest, and boosting. Tree-based models allow for the learning of non-linear decision boundaries but are based on the little theoretical basis and employ greedy search with no clear optimization formula. A single classification tree is simple and useful for interpretations but may not perform well in terms of prediction accuracy. Additionally, trees can be very non-robust. In other words, a small change in the data can cause a large change in the final estimated tree. By using random forest, the predictive performance of trees can be substantially improved and the variance can be reduced. Similarly, using boosting methods can also reduce the variances and improve the prediction accuracy. 
 
-Consistent with the model tuning methods used prior,repeated cross-validation was used to tune for the best tuning parameters. For the classification tree using the CART approach, the complexity parameter $cp = 0.0574$ was selected. For the conditional inference tree model, the $mincriterion = 0.977$ which controlled for the splits was selected. For the random forest model, the number of variables selected at split $mtry = 20$, and the minimal node size $min.node.size = 4$ were selected. For the ada boost model, the number of trees $B = 2000$, the interaction depth $d = 2$, shrinkage parameter $\lambda = 0.001$ and minimal node size $n.minobsinnode = 1$ were selected.  
+Consistent with the model tuning methods used prior, repeated cross-validation was used to tune for the best tuning parameters. For the classification tree using the CART approach, the complexity parameter $cp = 0.0574$ was selected. For the conditional inference tree model, the $mincriterion = 0.977$ which controlled for the splits was selected. For the random forest model, the number of variables selected at split $mtry = 20$, and the minimal node size $min.node.size = 4$ were selected. For the ada boost model, the number of trees $B = 2000$, the interaction depth $d = 2$, shrinkage parameter $\lambda = 0.001$ and minimal node size $n.minobsinnode = 1$ were selected.  
 
 ```{r classification tree: CART}
 set.seed(1)  
-
 rpart.fit = train(letter_grade ~ .,
                   student_df,
                   subset = rowTrain,
@@ -200,7 +188,6 @@ rpart.fit = train(letter_grade ~ .,
                   trControl = ctrl,
                   metric  = "Accuracy")
 #ggplot(rpart.fit, highlight = TRUE)
-
 # rpart.plot(rpart.fit$finalModel)
 # Best tuning parameter:  
 # rpart.fit$bestTune
@@ -208,7 +195,6 @@ rpart.fit = train(letter_grade ~ .,
 
 ```{r classification tree: CIT}  
 set.seed(1)  
-
 ctree.fit = train(letter_grade ~ .,
                   student_df,
                   subset = rowTrain,
@@ -217,7 +203,6 @@ ctree.fit = train(letter_grade ~ .,
                   metric = "Accuracy",
                   trControl = ctrl) 
 #ggplot(ctree.fit, highlight = TRUE)
-
 # plot(ctree.fit$finalModel)
 # Best tuning parameter:  
 # ctree.fit$bestTune
@@ -227,9 +212,7 @@ ctree.fit = train(letter_grade ~ .,
 rf.grid = expand.grid(mtry = 8:30,
                       splitrule = "gini",
                       min.node.size = seq(from = 2, to = 10, by = 2))  
-
 set.seed(1)  
-
 rf.fit = train(letter_grade ~ .,
                student_df,
                subset = rowTrain,
@@ -238,7 +221,6 @@ rf.fit = train(letter_grade ~ .,
                metric = "Accuracy",
                trControl = ctrl)
 #ggplot(rf.fit, highlight = TRUE)
-
 # Best tuning parameter
 # rf.fit$bestTune
 ```
@@ -248,9 +230,7 @@ gbmA.grid = expand.grid(n.trees = c(1000, 2000, 3000),
                         interaction.depth = 1:3,
                         shrinkage = c(0.001, 0.003, 0.005),
                         n.minobsinnode = 1)
-
 set.seed(1) 
-
 gbmA.fit = train(letter_grade ~ .,
                  student_df,
                  subset = rowTrain,
@@ -260,7 +240,6 @@ gbmA.fit = train(letter_grade ~ .,
                  distribution = "adaboost",
                  metric = "Accuracy",
                  verbose = FALSE)
-
 #ggplot(gbmA.fit, highlight = TRUE)
 #gbmA.fit$bestTune
 ```
@@ -268,7 +247,7 @@ gbmA.fit = train(letter_grade ~ .,
 
 ## Support Vector Machines       
      
-We further applied the support vector classifier model and the support vector machine with a radial kernel to the training data. SVMs are efficient learning algorithms for nonlinear functions and are equipped with computationally friendly quadratic optimization. Since our data is noisy with no clear decision boundary, the support vector classifier could maximize a soft margin that allows for some misclassification by applying a regularization coefficient, $C$. Since the decision boundary can hardly be linear, we also used the support vector machine with a radial kernel by expanding the original feature space. Using repeated cross-validations, we were able to obtain the best tuning parameters for the above models. For the radial kernel model, we employed the tuning method to tune over both $C$ and $\sigma$ by looking at which sigma on which cost curve has the highest accuracy. As a result, we obtained best tuning parameter $C = 0.0888$ for the support vector classifier and $C = 0.00483, \sigma = 1.249$ for the support vector machine model.       
+We further applied the support vector classifier model and the support vector machine with a radial kernel to the training data. SVMs are efficient learning algorithms for nonlinear functions and are equipped with computationally friendly quadratic optimization. Since our data is noisy with no clear decision boundary, the support vector classifier could maximize a soft margin that allows for some misclassification by applying a regularization coefficient, $C$. Since the decision boundary can hardly be linear, we also used the support vector machine with a radial kernel by expanding the original feature space. Using repeated cross-validations, we were able to obtain the best tuning parameters for the above models. For the radial kernel model, we employed the tuning method to tune over both $C$ and $\sigma$ by looking at which sigma on which cost curve has the highest accuracy. As a result, we obtained the best tuning parameter $C = 0.0888$ for the support vector classifier and $C = 0.00483, \sigma = 1.249$ for the support vector machine model.       
 
 ```{r support vector classifier,cache=TRUE}
 set.seed(1)  
@@ -277,7 +256,6 @@ svml.fit = train(letter_grade ~ .,
                  method = "svmLinear",
                  tuneGrid = data.frame(C = exp(seq(-4,2,len=20))),
                  trControl = ctrl)
-
 #plot(svml.fit, highlight = TRUE, xTrans = log)
 #svml.fit$bestTune
 ```
@@ -285,7 +263,6 @@ svml.fit = train(letter_grade ~ .,
 ```{r svm,cache=TRUE}
 svmr.grid = expand.grid(C = exp(seq(-6, 1, len=10)),
                         sigma = exp(seq(-8, 0, len=10)))
-
 set.seed(1) 
 svmr.fit = train(letter_grade ~ ., student_df,
                  subset = rowTrain, 
@@ -293,7 +270,6 @@ svmr.fit = train(letter_grade ~ ., student_df,
                  preProcess = c("center", "scale"),
                  tuneGrid = svmr.grid,
                  trControl = ctrl)
-
 #plot(svmr.fit, highlight = TRUE) 
 #svmr.fit$bestTune
 ```   
@@ -316,9 +292,7 @@ res = resamples(list(GLM = glm.fit,
                      GBM = gbmA.fit,
                      SVML = svml.fit,
                      SVMR = svmr.fit))
-
 #summary(res)
-
 bwplot(res)
 ```
 
@@ -331,7 +305,7 @@ pred.mars = predict(mars.fit, newdata = x_test)
 #                 reference = y_test)
 ```
 
-As mentioned before,the best tuning parameters, the degree of interactions of $1$ and the number of retained terms $9$ were selected using repeated cross-validations. The final model obtained was:   
+As mentioned before, the best tuning parameters, the degree of interactions of $1$ and the number of retained terms $9$ were selected using repeated cross-validations. The final model obtained was:   
 $$
 \begin{aligned}
 y &= 0.713 - 2.078\times h(failures-1) + 1.202 \times h(1-failures) - 2.135 \times schoolsupyes + \\
@@ -354,9 +328,7 @@ explainer_mars = DALEX::explain(mars.fit,
                          data = x,
                          y = as.numeric(student_df$letter_grade[rowTrain] == "pass"),
                          verbose = FALSE)
-
 vi_mars = DALEX::model_parts(explainer_mars)
-
 plot(vi_mars)
 ```
 
@@ -366,24 +338,28 @@ We also made partial dependence profile for "failures" and "schoolsupyes". As de
 p1 = DALEX::model_profile(explainer_mars,
               variable = "failures",
               type = "partial")
-
 p2 = DALEX::model_profile(explainer_mars,
               variable = "schoolsupyes",
               type = "partial")
-
 plot(p1,p2)
 ```
 
 \newpage 
 
 # Conclusions   
-Education is an essential factor for long-term success in the future. Of all the core classes, mathematics, as a scientific language, is a very powerful tool. Core classes of Mathematics provide fundamental knowledge for many subjects, which is one of the reasons that is so important to study it. The goal for this project is to identify the key variables that affect educational success or failure in mathematics through students' studying progress.   
+Education is an essential factor for long-term success in the future. Of all the core classes, mathematics, as a scientific language, is a very powerful tool. Core classes of Mathematics provide fundamental knowledge for many subjects, which is one of the reasons that is so important to study it. The goal of our project is to identify the key variables that affect educational success or failure in mathematics through students' studying progress.   
 
-Based on the model comparison, MARS had the highest accuracy and the Kappa value. Thus it outperformed other models to be the best model fit for our dataset with an overall mean accuracy of 70.8%. This result was out of our expectation. We were expecting classification models to perform better than regression models. As advocated by the final model of MARS, we can see that “failures”, “schoolsupyes” and “goout” were the top three important features in making the prediction. The predictor "failures" is the most important features in the results of several different models which met our expectation. By using repeated cross-validation, our final model obtained "failures", "schoolsupyes", "goout", "absences", "medu" and "mjob (teacher)" and "fjob (other)".    
+Based on the model comparison, MARS had the highest accuracy and the Kappa value. Thus it outperformed other models to be the best model fit for our dataset with an overall mean accuracy of 70.8%. This result was out of our expectations. We were expecting classification models to perform better than regression models. As advocated by the final model of MARS, we can see that “failures”, “schoolsupyes” and “goout” were the top three important features in making the prediction. The predictor "failures" is the most important features in the results of several different models which met our expectation. By using repeated cross-validation, our final model obtained "failures", "schoolsupyes", "goout", "absences", "medu" and "mjob (teacher)" and "fjob (other)".    
 
-Our study also has limitations. Our data is not diversified enough, less than four hundred data represents as a small dataset. At the same time, the data was collected from only two Portuguese schools, indicating that some features collected in the data set may be affected by environmental, region or other factors, and will lead to data bias. 
+Our study also has limitations. The data is not diversified enough, less than four hundred data represents a small dataset. At the same time, the data was collected from only two Portuguese schools, indicating that some features collected in the data set may be affected by environmental, region, or other factors, and will lead to data bias. Another point is that the original data was collected from surveys. Students may provide inaccurate information and will cause the data to be skewed.
+
+
+# Reference
+
+P. Cortez and A. Silva. _Using Data Mining to Predict Secondary School Student Performance. In A. Brito and J. Teixeira Eds., Proceedings of 5th FUture BUsiness TEChnology Conference (FUBUTEC 2008) pp. 5-12, Porto, Portugal, April, 2008, EUROSIS, ISBN 978-9077381-39-7._
 
 \newpage 
+
 
 # Appendix
 ```{r, message=FALSE, warning=FALSE, fig.cap="\\label{fig:figs}Skim summary table"}
@@ -394,17 +370,12 @@ skimr::skim(student_df)
 
 ```{r, message=FALSE, warning=FALSE, fig.cap="\\label{fig:figs}Density plot for numeric features"}
 # df of predictors 
-
 x_corr = student_df %>% 
   dplyr::select(-school, -sex, -address,-famsize, -pstatus, -mjob, -fjob, -reason, -guardian, -schoolsup, -famsup , -paid, -activities, -nursery, -higher, -internet, -romantic, -letter_grade, -absences)
-
-
 x_plot = student_df %>% 
   dplyr::select(absences)
-
 # vector of response
 y_corr = student_df$letter_grade
-
 theme1 <- trellis.par.get()
 theme1$plot.symbol$col <- rgb(.2, .4, .2, .5)
 theme1$plot.symbol$pch <- 16
@@ -416,14 +387,12 @@ plot1 = featurePlot(x_corr, y_corr, plot = "boxplot", labels = c("","Y"),
             type = c("p"), layout = c(4, 3))
 plot2 = featurePlot(x_plot, y_corr, plot = "boxplot", labels = c("","Y"),
             type = c("p"), layout = c(1,1))
-
 plot3 = featurePlot(dplyr::select_if(student_df, is.numeric),
                     y = y_corr,
                     scales = list(x =list(relation ="free"),
                                   y =list(relation ="free")),
                     plot = "density", pch = "|",
                     auto.key = list(columns = 2))
-
 plot3 
 ```
 
@@ -436,7 +405,6 @@ plot_grid(plot1, plot2)
 corr_df = 
   student_df %>% 
   dplyr::select(age, medu, fedu, traveltime, studytime, failures, famrel, freetime, goout, dalc, walc, health, absences, letter_grade) 
-
 # correlation plot with only continous var
 model.matrix(~0+., data = corr_df) %>% 
   cor(use = "pairwise.complete.obs") %>% 
